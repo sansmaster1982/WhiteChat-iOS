@@ -1,0 +1,90 @@
+/* Tabs */
+"tab_chats" = "Чаты";
+"tab_contacts" = "Контакты";
+"tab_settings" = "Настройки";
+
+/* Onboarding */
+"onboarding_subtitle" = "Сквозное шифрование сообщений\nчерез email";
+"onboarding_start" = "Начать";
+"onboarding_account_title" = "Настройка аккаунта";
+"onboarding_name" = "Имя";
+"onboarding_email" = "Email адрес";
+"onboarding_password" = "Пароль от почты";
+"onboarding_password_hint" = "Используйте пароль приложения для Gmail/Яндекс";
+"onboarding_generate_keys" = "Сгенерировать ключи";
+"onboarding_generating" = "Генерация RSA-4096 ключей...";
+"onboarding_generating_hint" = "Это может занять некоторое время";
+"onboarding_ready" = "Всё готово!";
+
+/* Chats */
+"chats_title" = "Чаты";
+"chats_no_messages" = "Нет сообщений";
+"chat_placeholder" = "Введите сообщение...";
+
+/* Attachments */
+"attach_camera" = "Камера";
+"attach_gallery" = "Галерея";
+"attach_document" = "Документ";
+"attachment_photo" = "Фото";
+"attachment_voice" = "Голосовое сообщение";
+"attachment_document" = "Документ";
+"attachment_video" = "Видео";
+
+/* New Chat */
+"new_chat_title" = "Новый чат";
+"new_chat_description" = "Введите email получателя или отсканируйте его QR-код";
+"new_chat_email_placeholder" = "email@example.com";
+"new_chat_scan_qr" = "Сканировать QR-код";
+"new_chat_add" = "Начать чат";
+"new_chat_already_exists" = "Контакт уже существует";
+
+/* QR */
+"qr_scanner_title" = "Сканирование QR";
+
+/* Contacts */
+"contacts_title" = "Контакты";
+"contacts_section_title" = "Контакты";
+"contacts_my_qr" = "Мой QR-код";
+"contacts_my_qr_hint" = "Поделиться публичным ключом";
+"contacts_qr_description" = "Покажите этот код другим, чтобы они добавили вас с шифрованием";
+"contacts_no_key" = "Публичный ключ не создан";
+
+/* Settings */
+"settings_title" = "Настройки";
+"settings_account" = "Аккаунт";
+"settings_name" = "Имя";
+"settings_email" = "Email";
+"settings_provider" = "Провайдер";
+"settings_password" = "Пароль";
+"settings_appearance" = "Внешний вид";
+"settings_theme" = "Тема";
+"settings_theme_dark" = "Тёмная";
+"settings_theme_light" = "Светлая";
+"settings_language" = "Язык";
+"settings_security" = "Безопасность";
+"settings_export_keys" = "Экспорт ключей (.wcb)";
+"settings_import_keys" = "Импорт ключей (.wcb)";
+"settings_export_error" = "Ошибка экспорта";
+"settings_import_error" = "Ошибка импорта";
+"settings_about" = "О приложении";
+"settings_version" = "Версия";
+"settings_encryption" = "Шифрование";
+"settings_reset_account" = "Сбросить аккаунт";
+"settings_reset_title" = "Сбросить аккаунт";
+"settings_reset_message" = "Все ключи и данные аккаунта будут удалены. Это действие нельзя отменить.";
+"settings_reset_confirm" = "Сбросить";
+
+/* Backup */
+"backup_export_title" = "Экспорт ключей";
+"backup_export_description" = "Создайте пароль для шифрования файла резервной копии (.wcb)";
+"backup_export_button" = "Экспортировать";
+"backup_import_title" = "Импорт ключей";
+"backup_import_description" = "Введите пароль, указанный при экспорте";
+"backup_import_button" = "Импортировать";
+"backup_password_placeholder" = "Пароль резервной копии";
+
+/* Common */
+"cancel" = "Отмена";
+"done" = "Готово";
+"error" = "Ошибка";
+"ok" = "OK";
