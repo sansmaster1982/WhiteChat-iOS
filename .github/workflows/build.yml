@@ -1,0 +1,46 @@
+name: Build WhiteChat iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 15
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve SPM dependencies
+        run: xcodebuild -resolvePackageDependencies -project WhiteChat.xcodeproj -scheme WhiteChat
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project WhiteChat.xcodeproj \
+            -scheme WhiteChat \
+            -destination "generic/platform=iOS Simulator" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+
+      - name: Archive (Release)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          xcodebuild archive \
+            -project WhiteChat.xcodeproj \
+            -scheme WhiteChat \
+            -destination "generic/platform=iOS" \
+            -archivePath build/WhiteChat.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
