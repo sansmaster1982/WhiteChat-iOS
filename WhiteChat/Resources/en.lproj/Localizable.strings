@@ -1,0 +1,90 @@
+/* Tabs */
+"tab_chats" = "Chats";
+"tab_contacts" = "Contacts";
+"tab_settings" = "Settings";
+
+/* Onboarding */
+"onboarding_subtitle" = "End-to-end encrypted messaging\nover email";
+"onboarding_start" = "Get Started";
+"onboarding_account_title" = "Set Up Account";
+"onboarding_name" = "Display Name";
+"onboarding_email" = "Email Address";
+"onboarding_password" = "Email Password";
+"onboarding_password_hint" = "Use an app-specific password for Gmail/Yandex";
+"onboarding_generate_keys" = "Generate Encryption Keys";
+"onboarding_generating" = "Generating RSA-4096 keys...";
+"onboarding_generating_hint" = "This may take a moment";
+"onboarding_ready" = "You're all set!";
+
+/* Chats */
+"chats_title" = "Chats";
+"chats_no_messages" = "No messages yet";
+"chat_placeholder" = "Type a message...";
+
+/* Attachments */
+"attach_camera" = "Camera";
+"attach_gallery" = "Gallery";
+"attach_document" = "Document";
+"attachment_photo" = "Photo";
+"attachment_voice" = "Voice message";
+"attachment_document" = "Document";
+"attachment_video" = "Video";
+
+/* New Chat */
+"new_chat_title" = "New Chat";
+"new_chat_description" = "Enter the recipient's email or scan their QR code";
+"new_chat_email_placeholder" = "email@example.com";
+"new_chat_scan_qr" = "Scan QR Code";
+"new_chat_add" = "Start Chat";
+"new_chat_already_exists" = "Contact already exists";
+
+/* QR */
+"qr_scanner_title" = "Scan QR Code";
+
+/* Contacts */
+"contacts_title" = "Contacts";
+"contacts_section_title" = "Contacts";
+"contacts_my_qr" = "My QR Code";
+"contacts_my_qr_hint" = "Share your public key";
+"contacts_qr_description" = "Let others scan this code to add you as a contact with end-to-end encryption";
+"contacts_no_key" = "No public key generated";
+
+/* Settings */
+"settings_title" = "Settings";
+"settings_account" = "Account";
+"settings_name" = "Name";
+"settings_email" = "Email";
+"settings_provider" = "Provider";
+"settings_password" = "Password";
+"settings_appearance" = "Appearance";
+"settings_theme" = "Theme";
+"settings_theme_dark" = "Dark";
+"settings_theme_light" = "Light";
+"settings_language" = "Language";
+"settings_security" = "Security";
+"settings_export_keys" = "Export Keys (.wcb)";
+"settings_import_keys" = "Import Keys (.wcb)";
+"settings_export_error" = "Export error";
+"settings_import_error" = "Import error";
+"settings_about" = "About";
+"settings_version" = "Version";
+"settings_encryption" = "Encryption";
+"settings_reset_account" = "Reset Account";
+"settings_reset_title" = "Reset Account";
+"settings_reset_message" = "This will delete all keys and account data. This action cannot be undone.";
+"settings_reset_confirm" = "Reset";
+
+/* Backup */
+"backup_export_title" = "Export Keys";
+"backup_export_description" = "Create a password to encrypt your key backup file (.wcb)";
+"backup_export_button" = "Export";
+"backup_import_title" = "Import Keys";
+"backup_import_description" = "Enter the password used when exporting";
+"backup_import_button" = "Import";
+"backup_password_placeholder" = "Backup password";
+
+/* Common */
+"cancel" = "Cancel";
+"done" = "Done";
+"error" = "Error";
+"ok" = "OK";

@@ -1,0 +1,53 @@
+name: WhiteChat
+options:
+  bundleIdPrefix: com.whitechat
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+
+packages:
+  ObjectivePGP:
+    url: https://github.com/nicklama/ObjectivePGP-SPM
+    from: "1.0.0"
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "6.24.0"
+  CodeScanner:
+    url: https://github.com/twostraws/CodeScanner
+    from: "2.3.0"
+  MailCore:
+    url: https://github.com/nicklama/mailcore2-spm
+    from: "1.0.0"
+
+targets:
+  WhiteChat:
+    type: application
+    platform: iOS
+    sources:
+      - path: WhiteChat
+    settings:
+      base:
+        INFOPLIST_FILE: WhiteChat/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.whitechat.ios
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: "YES"
+    resources:
+      - path: WhiteChat/Resources
+        buildPhase: resources
+    dependencies:
+      - package: ObjectivePGP
+      - package: GRDB
+        product: GRDB
+      - package: CodeScanner
+      - package: MailCore
