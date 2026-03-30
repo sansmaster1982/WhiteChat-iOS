@@ -27,6 +27,8 @@ Pods/
 # Secrets
 *.env
 credentials.json
+*.mobileprovision
+profile_base64.txt
 
 # Archives
 *.ipa
