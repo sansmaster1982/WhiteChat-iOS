@@ -14,17 +14,17 @@ settings:
 
 packages:
   ObjectivePGP:
-    url: https://github.com/nicklama/ObjectivePGP-SPM
-    from: "1.0.0"
+    url: https://github.com/krzyzanowskim/ObjectivePGP
+    from: "0.99.4"
   GRDB:
     url: https://github.com/groue/GRDB.swift
     from: "6.24.0"
   CodeScanner:
     url: https://github.com/twostraws/CodeScanner
     from: "2.3.0"
-  MailCore:
-    url: https://github.com/nicklama/mailcore2-spm
-    from: "1.0.0"
+  # MailCore2 — temporarily using direct binary target
+  # Will integrate when SPM package is stable
+  # For now, email transport uses stub implementation
 
 targets:
   WhiteChat:
@@ -50,4 +50,4 @@ targets:
       - package: GRDB
         product: GRDB
       - package: CodeScanner
-      - package: MailCore
+      # - package: MailCore  # TODO: integrate when SPM stable

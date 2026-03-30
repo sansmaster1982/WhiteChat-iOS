@@ -1,11 +1,11 @@
 import Foundation
-import MailCore
+import Network
 
-/// IMAP client for receiving encrypted emails — matches Android ImapClient
+/// IMAP client for receiving encrypted emails — native implementation
 /// Uses provider-adaptive polling (no IDLE — Yandex breaks it)
 final class ImapClient {
-    private let session: MCOIMAPSession
     private let email: String
+    private let password: String
     private let provider: EmailConstants.Provider
 
     // Adaptive polling
@@ -14,16 +14,8 @@ final class ImapClient {
 
     init(email: String, password: String) {
         self.email = email
+        self.password = password
         self.provider = EmailConstants.findProvider(for: email)
-
-        session = MCOIMAPSession()
-        session.hostname = provider.imapHost
-        session.port = UInt32(provider.imapPort)
-        session.username = email
-        session.password = password
-        session.connectionType = .TLS
-        session.authType = .saslPlain
-        session.timeout = 30
     }
 
     /// Current poll interval based on foreground/background + backoff
@@ -33,31 +25,23 @@ final class ImapClient {
     }
 
     /// Fetch new messages from INBOX
-    func fetchNewMessages(sinceUID: UInt32 = 1) async throws -> [(uid: UInt32, header: MCOIMAPMessage, body: String, attachments: [(filename: String, data: Data)])] {
-        let folder = "INBOX"
+    func fetchNewMessages() async throws -> [(sender: String, body: String, messageId: String)] {
+        let session = NativeImapSession(
+            host: provider.imapHost,
+            port: provider.imapPort,
+            username: email,
+            password: password
+        )
 
-        // Fetch message headers
-        let messages = try await fetchMessages(folder: folder, sinceUID: sinceUID)
+        let rawMessages = try await session.fetchUnseenMessages(folder: "INBOX")
 
-        var results: [(uid: UInt32, header: MCOIMAPMessage, body: String, attachments: [(filename: String, data: Data)])] = []
-
-        for msg in messages {
-            // Check for WhiteChat header
-            guard let headerValue = msg.header.extraHeaderValue(forName: EmailConstants.headerName),
-                  headerValue == EmailConstants.headerValue else {
-                continue
+        // Filter WhiteChat messages
+        var results: [(sender: String, body: String, messageId: String)] = []
+        for msg in rawMessages {
+            if msg.subject.hasPrefix(EmailConstants.subjectPrefix) ||
+               msg.headers.contains(where: { $0.key == EmailConstants.headerName && $0.value == EmailConstants.headerValue }) {
+                results.append((sender: msg.from, body: msg.body, messageId: msg.messageId))
             }
-
-            // Check subject prefix
-            guard let subject = msg.header.subject,
-                  subject.hasPrefix(EmailConstants.subjectPrefix) else {
-                continue
-            }
-
-            // Fetch body
-            let body = try await fetchBody(folder: folder, uid: msg.uid)
-            let attachments = try await fetchAttachments(folder: folder, message: msg)
-            results.append((uid: msg.uid, header: msg, body: body, attachments: attachments))
         }
 
         // Success — reduce backoff
@@ -70,22 +54,26 @@ final class ImapClient {
     }
 
     /// Check spam folder for misplaced messages
-    func checkSpamFolder() async throws -> [(uid: UInt32, body: String, attachments: [(filename: String, data: Data)])] {
-        var results: [(uid: UInt32, body: String, attachments: [(filename: String, data: Data)])] = []
+    func checkSpamFolder() async throws -> [(sender: String, body: String, messageId: String)] {
+        var results: [(sender: String, body: String, messageId: String)] = []
 
         for spamName in EmailConstants.spamFolderNames {
-            let messages = try await fetchMessages(folder: spamName, sinceUID: 1)
-            for msg in messages {
-                guard let headerValue = msg.header.extraHeaderValue(forName: EmailConstants.headerName),
-                      headerValue == EmailConstants.headerValue else {
-                    continue
+            do {
+                let session = NativeImapSession(
+                    host: provider.imapHost,
+                    port: provider.imapPort,
+                    username: email,
+                    password: password
+                )
+                let rawMessages = try await session.fetchUnseenMessages(folder: spamName)
+                for msg in rawMessages {
+                    if msg.subject.hasPrefix(EmailConstants.subjectPrefix) {
+                        results.append((sender: msg.from, body: msg.body, messageId: msg.messageId))
+                    }
                 }
-                let body = try await fetchBody(folder: spamName, uid: msg.uid)
-                let attachments = try await fetchAttachments(folder: spamName, message: msg)
-                results.append((uid: msg.uid, body: body, attachments: attachments))
-
-                // Move to INBOX
-                try await moveMessage(fromFolder: spamName, uid: msg.uid, toFolder: "INBOX")
+            } catch {
+                // Folder might not exist — skip
+                continue
             }
         }
 
@@ -101,88 +89,159 @@ final class ImapClient {
     func reportRatelimit() {
         backoffMultiplier = min(8, backoffMultiplier * 2)
     }
+}
 
-    // MARK: - Private helpers
+// MARK: - Native IMAP Session
 
-    private func fetchMessages(folder: String, sinceUID: UInt32) async throws -> [MCOIMAPMessage] {
-        let range = MCORange(location: UInt64(sinceUID), length: UINT64_MAX)
-        let indexSet = MCOIndexSet(range: range)
-        let fetchOp = session.fetchMessagesOperation(
-            withFolder: folder,
-            requestKind: [.headers, .structure, .extraHeaders],
-            uids: indexSet
-        )!
+struct ImapMessage {
+    let from: String
+    let subject: String
+    let body: String
+    let messageId: String
+    let headers: [(key: String, value: String)]
+}
 
-        // Request custom header
-        fetchOp.extraHeaders = [EmailConstants.headerName]
+private class NativeImapSession {
+    let host: String
+    let port: Int
+    let username: String
+    let password: String
 
-        return try await withCheckedThrowingContinuation { continuation in
-            fetchOp.start { error, messages, _ in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume(returning: (messages as? [MCOIMAPMessage]) ?? [])
-                }
-            }
-        }
+    init(host: String, port: Int, username: String, password: String) {
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
     }
 
-    private func fetchBody(folder: String, uid: UInt32) async throws -> String {
-        let fetchOp = session.fetchMessageOperation(withFolder: folder, uid: uid)!
+    func fetchUnseenMessages(folder: String) async throws -> [ImapMessage] {
         return try await withCheckedThrowingContinuation { continuation in
-            fetchOp.start { error, data in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let data = data {
-                    let parser = MCOMessageParser(data: data)
-                    let body = parser?.plainTextBodyRendering() ?? ""
-                    continuation.resume(returning: body)
-                } else {
-                    continuation.resume(returning: "")
-                }
+            let queue = DispatchQueue(label: "imap")
+
+            let tlsOptions = NWProtocolTLS.Options()
+            let tcpOptions = NWProtocolTCP.Options()
+            let params = NWParameters(tls: tlsOptions, tcp: tcpOptions)
+
+            let connection = NWConnection(
+                host: NWEndpoint.Host(host),
+                port: NWEndpoint.Port(integerLiteral: UInt16(port)),
+                using: params
+            )
+
+            var messages: [ImapMessage] = []
+            var tagCounter = 1
+
+            func nextTag() -> String {
+                let tag = "A\(tagCounter)"
+                tagCounter += 1
+                return tag
             }
-        }
-    }
 
-    private func fetchAttachments(folder: String, message: MCOIMAPMessage) async throws -> [(filename: String, data: Data)] {
-        guard let parts = message.attachments() as? [MCOIMAPPart] else { return [] }
-        var results: [(filename: String, data: Data)] = []
-
-        for part in parts {
-            guard let filename = part.filename, !filename.isEmpty else { continue }
-            let fetchOp = session.fetchMessageAttachmentOperation(
-                withFolder: folder,
-                uid: message.uid,
-                partID: part.partID,
-                encoding: part.encoding
-            )!
-
-            let data: Data = try await withCheckedThrowingContinuation { continuation in
-                fetchOp.start { error, data in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: data ?? Data())
+            func sendCommand(_ cmd: String, completion: @escaping (String) -> Void) {
+                let data = (cmd + "\r\n").data(using: .utf8)!
+                connection.send(content: data, completion: .contentProcessed { error in
+                    if error != nil { return }
+                    // Read response
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, _, _ in
+                        let response = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                        completion(response)
                     }
+                })
+            }
+
+            connection.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    // Read greeting
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { data, _, _, _ in
+                        let tag1 = nextTag()
+                        sendCommand("\(tag1) LOGIN \(self.username) \(self.password)") { response in
+                            if response.contains("OK") {
+                                let tag2 = nextTag()
+                                sendCommand("\(tag2) SELECT \(folder)") { _ in
+                                    let tag3 = nextTag()
+                                    sendCommand("\(tag3) SEARCH UNSEEN") { searchResp in
+                                        // Parse UIDs from "* SEARCH 1 2 3"
+                                        let uids = searchResp
+                                            .components(separatedBy: "\r\n")
+                                            .first(where: { $0.contains("* SEARCH") })?
+                                            .replacingOccurrences(of: "* SEARCH ", with: "")
+                                            .split(separator: " ")
+                                            .compactMap { Int($0) } ?? []
+
+                                        if uids.isEmpty {
+                                            let tagL = nextTag()
+                                            sendCommand("\(tagL) LOGOUT") { _ in
+                                                connection.cancel()
+                                                continuation.resume(returning: messages)
+                                            }
+                                            return
+                                        }
+
+                                        // Fetch each message
+                                        let uidList = uids.map(String.init).joined(separator: ",")
+                                        let tag4 = nextTag()
+                                        sendCommand("\(tag4) FETCH \(uidList) (BODY[HEADER] BODY[TEXT])") { fetchResp in
+                                            // Basic parsing
+                                            let msg = ImapMessage(
+                                                from: self.extractHeader("From", from: fetchResp),
+                                                subject: self.extractHeader("Subject", from: fetchResp),
+                                                body: self.extractBody(from: fetchResp),
+                                                messageId: self.extractHeader("Message-ID", from: fetchResp),
+                                                headers: [(key: EmailConstants.headerName,
+                                                           value: self.extractHeader(EmailConstants.headerName, from: fetchResp))]
+                                            )
+                                            if !msg.body.isEmpty {
+                                                messages.append(msg)
+                                            }
+
+                                            let tagL = nextTag()
+                                            sendCommand("\(tagL) LOGOUT") { _ in
+                                                connection.cancel()
+                                                continuation.resume(returning: messages)
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                connection.cancel()
+                                continuation.resume(throwing: NSError(domain: "IMAP", code: 401,
+                                    userInfo: [NSLocalizedDescriptionKey: "Login failed"]))
+                            }
+                        }
+                    }
+                case .failed(let error):
+                    continuation.resume(throwing: error)
+                default:
+                    break
                 }
             }
-            results.append((filename: filename, data: data))
-        }
 
-        return results
+            connection.start(queue: queue)
+        }
     }
 
-    private func moveMessage(fromFolder: String, uid: UInt32, toFolder: String) async throws {
-        let indexSet = MCOIndexSet(index: UInt64(uid))
-        let moveOp = session.moveMessagesOperation(withFolder: fromFolder, uids: indexSet, destFolder: toFolder)!
-        return try await withCheckedThrowingContinuation { continuation in
-            moveOp.start { error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
-            }
+    private func extractHeader(_ name: String, from response: String) -> String {
+        let pattern = "\(name): "
+        guard let range = response.range(of: pattern, options: .caseInsensitive) else { return "" }
+        let start = range.upperBound
+        let rest = response[start...]
+        if let end = rest.range(of: "\r\n") {
+            return String(rest[..<end.lowerBound]).trimmingCharacters(in: .whitespaces)
         }
+        return String(rest).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func extractBody(from response: String) -> String {
+        // Find body section between BODY[TEXT] markers
+        if let range = response.range(of: "\r\n\r\n") {
+            let bodyPart = String(response[range.upperBound...])
+            // Remove IMAP tags at the end
+            if let endRange = bodyPart.range(of: "\r\n)") {
+                return String(bodyPart[..<endRange.lowerBound])
+            }
+            return bodyPart.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return ""
     }
 }

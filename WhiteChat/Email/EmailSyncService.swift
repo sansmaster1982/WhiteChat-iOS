@@ -9,7 +9,6 @@ final class EmailSyncService: ObservableObject {
 
     private var pollTask: Task<Void, Never>?
     private var isForeground = true
-    private var lastUID: UInt32 = 1
 
     @Published var isRunning = false
 
@@ -55,19 +54,16 @@ final class EmailSyncService: ObservableObject {
         while !Task.isCancelled {
             do {
                 // Fetch new messages from INBOX
-                let newMessages = try await imapClient.fetchNewMessages(sinceUID: lastUID)
+                let newMessages = try await imapClient.fetchNewMessages()
                 for msg in newMessages {
-                    await processIncomingMessage(body: msg.body, attachments: msg.attachments)
-                    if msg.uid >= lastUID {
-                        lastUID = msg.uid + 1
-                    }
+                    await processIncomingMessage(body: msg.body, sender: msg.sender, messageId: msg.messageId)
                 }
 
                 // Check spam periodically
                 if imapClient.shouldCheckSpam {
                     let spamMessages = try await imapClient.checkSpamFolder()
                     for msg in spamMessages {
-                        await processIncomingMessage(body: msg.body, attachments: msg.attachments)
+                        await processIncomingMessage(body: msg.body, sender: msg.sender, messageId: msg.messageId)
                     }
                 }
             } catch {
@@ -75,7 +71,6 @@ final class EmailSyncService: ObservableObject {
                 if errorMsg.contains("ratelimit") || errorMsg.contains("rate limit")
                     || errorMsg.contains("too many") || errorMsg.contains("throttl") {
                     imapClient.reportRatelimit()
-                    // Extra pause on ratelimit
                     try? await Task.sleep(nanoseconds: 5_000_000_000)
                 }
                 print("Poll error: \(error)")
@@ -87,13 +82,14 @@ final class EmailSyncService: ObservableObject {
         }
     }
 
-    private func processIncomingMessage(body: String, attachments: [(filename: String, data: Data)]) async {
+    private func processIncomingMessage(body: String, sender: String, messageId: String) async {
+        // Dedup
+        guard !MessageRepository.shared.messageExists(emailMessageId: messageId) else { return }
+
         do {
             let decrypted = try PgpCryptoEngine.shared.decrypt(armoredMessage: body)
 
-            // Extract sender from decrypted message or header
-            // For now, we parse the "From:" prefix if present
-            let senderEmail = extractSender(from: decrypted) ?? "unknown"
+            let senderEmail = extractSender(from: decrypted) ?? sender
             let messageText = extractBody(from: decrypted)
 
             // Ensure contact exists
@@ -109,22 +105,15 @@ final class EmailSyncService: ObservableObject {
                 isOutgoing: false,
                 timestamp: Date(),
                 status: .received,
-                emailMessageId: UUID().uuidString
+                emailMessageId: messageId
             )
             try MessageRepository.shared.insert(message)
-
-            // Handle attachments
-            for attachment in attachments {
-                let decryptedData = try PgpCryptoEngine.shared.decryptData(attachment.data)
-                try saveAttachment(filename: attachment.filename, data: decryptedData, contactEmail: senderEmail)
-            }
         } catch {
             print("Failed to process message: \(error)")
         }
     }
 
     private func extractSender(from text: String) -> String? {
-        // Messages may start with "From: email@example.com\n"
         if text.hasPrefix("From: ") {
             return text.components(separatedBy: "\n").first?
                 .replacingOccurrences(of: "From: ", with: "")
@@ -139,14 +128,5 @@ final class EmailSyncService: ObservableObject {
             return lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return text
-    }
-
-    private func saveAttachment(filename: String, data: Data, contactEmail: String) throws {
-        let attachDir = FileManager.default
-            .urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("attachments")
-            .appendingPathComponent(contactEmail.lowercased())
-        try FileManager.default.createDirectory(at: attachDir, withIntermediateDirectories: true)
-        try data.write(to: attachDir.appendingPathComponent(filename))
     }
 }
