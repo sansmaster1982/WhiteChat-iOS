@@ -110,10 +110,12 @@ jobs:
             -archivePath $RUNNER_TEMP/${{ env.APP_NAME }}.xcarchive \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="${{ env.SIGNING_IDENTITY }}" \
-            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_UUID }}" \
+            "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]=${{ env.PROFILE_UUID }}" \
             PRODUCT_BUNDLE_IDENTIFIER=${{ env.BUNDLE_ID }} \
             -allowProvisioningUpdates \
-            COMPILER_INDEX_STORE_ENABLE=NO
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            'CODE_SIGN_IDENTITY[sdk=macosx*]=' \
+            'PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]='
 
       # ── 10. Create ExportOptions.plist ──
       - name: Create ExportOptions.plist
