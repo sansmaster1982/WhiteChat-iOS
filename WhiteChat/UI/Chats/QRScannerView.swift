@@ -1,5 +1,5 @@
 import SwiftUI
-import CodeScannerView
+import CodeScanner
 
 /// QR scanner wrapper — scans PGP public keys from QR codes
 struct QRScannerView: View {

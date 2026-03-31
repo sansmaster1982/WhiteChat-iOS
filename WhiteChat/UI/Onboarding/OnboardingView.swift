@@ -1,5 +1,5 @@
 import SwiftUI
-import CodeScannerView
+import CodeScanner
 
 /// Onboarding flow — account setup + key generation
 /// Matches Android OnboardingScreen
