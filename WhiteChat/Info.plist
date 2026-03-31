@@ -18,6 +18,8 @@
     <string>$(EXECUTABLE_NAME)</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>UILaunchScreen</key>
     <dict/>
     <key>UISupportedInterfaceOrientations</key>
@@ -35,6 +37,10 @@
     <array>
         <string>fetch</string>
         <string>processing</string>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.whitechat.ios.emailsync</string>
     </array>
     <key>NSCameraUsageDescription</key>
     <string>Camera is needed to scan QR codes and take photos</string>
