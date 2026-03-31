@@ -59,7 +59,6 @@ jobs:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # Decode certificate and profile
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
@@ -67,25 +66,21 @@ jobs:
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERTIFICATE_PATH
           echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o $PP_PATH
 
-          # Create temporary keychain
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Import certificate
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 \
             -k $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" \
             $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
 
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
-
-          # Extract profile UUID for ExportOptions
           PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin \
             <<< $(security cms -D -i $PP_PATH))
+          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+
           echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
           echo "Profile UUID: $PROFILE_UUID"
 
@@ -99,7 +94,22 @@ jobs:
           echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
           echo "Signing identity: $IDENTITY"
 
-      # ── 9. Archive ──
+      # ── 9. Patch project for manual signing (app target only) ──
+      - name: Patch signing in Xcode project
+        run: |
+          # Use PlistBuddy/sed to set manual signing only for the WhiteChat target
+          # This avoids SPM targets inheriting the provisioning profile
+          PBXPROJ="${APP_NAME}.xcodeproj/project.pbxproj"
+
+          # Replace Automatic with Manual for the main target
+          sed -i '' "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g" "$PBXPROJ"
+
+          # Insert provisioning profile for the main target build configs
+          sed -i '' "s/PRODUCT_BUNDLE_IDENTIFIER = com.whitechat.ios;/PRODUCT_BUNDLE_IDENTIFIER = com.whitechat.ios; PROVISIONING_PROFILE_SPECIFIER = \"${PROFILE_UUID}\"; CODE_SIGN_IDENTITY = \"${SIGNING_IDENTITY}\";/g" "$PBXPROJ"
+
+          echo "Patched project.pbxproj for manual signing"
+
+      # ── 10. Archive ──
       - name: Archive
         run: |
           xcodebuild archive \
@@ -108,16 +118,10 @@ jobs:
             -sdk iphoneos \
             -configuration Release \
             -archivePath $RUNNER_TEMP/${{ env.APP_NAME }}.xcarchive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="${{ env.SIGNING_IDENTITY }}" \
-            "PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]=${{ env.PROFILE_UUID }}" \
-            PRODUCT_BUNDLE_IDENTIFIER=${{ env.BUNDLE_ID }} \
             -allowProvisioningUpdates \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            'CODE_SIGN_IDENTITY[sdk=macosx*]=' \
-            'PROVISIONING_PROFILE_SPECIFIER[sdk=macosx*]='
+            COMPILER_INDEX_STORE_ENABLE=NO
 
-      # ── 10. Create ExportOptions.plist ──
+      # ── 11. Create ExportOptions.plist ──
       - name: Create ExportOptions.plist
         env:
           TEAM_ID: ${{ secrets.TEAM_ID }}
@@ -148,19 +152,17 @@ jobs:
           </plist>
           PLIST
 
-      # ── 11. Export & Upload to App Store Connect ──
+      # ── 12. Export & Upload to App Store Connect ──
       - name: Upload to App Store Connect
         env:
           APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
-          # Write API key file
           mkdir -p ~/.private_keys
           echo -n "$APP_STORE_CONNECT_API_KEY" | base64 --decode \
             > ~/.private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
 
-          # Export and upload in one step using app-store-connect method
           xcodebuild -exportArchive \
             -archivePath $RUNNER_TEMP/${{ env.APP_NAME }}.xcarchive \
             -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
@@ -170,7 +172,7 @@ jobs:
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
 
-      # ── 12. Cleanup keychain ──
+      # ── 13. Cleanup keychain ──
       - name: Cleanup
         if: always()
         run: |
