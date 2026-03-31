@@ -76,14 +76,37 @@ final class PgpCryptoEngine {
 
     /// Extract email from PGP public key
     func extractEmail(from armoredKey: String) -> String? {
-        guard let keys = try? ObjectivePGP.readKeys(from: armoredKey.data(using: .utf8)!) else {
+        guard let keyData = armoredKey.data(using: .utf8),
+              let keys = try? ObjectivePGP.readKeys(from: keyData),
+              let key = keys.first else {
             return nil
         }
-        // User ID format: "Name <email@example.com>"
-        guard let userId = keys.first?.users.first?.userID else { return nil }
-        if let start = userId.range(of: "<"), let end = userId.range(of: ">") {
-            return String(userId[start.upperBound..<end.lowerBound])
+
+        // Try to get User ID from the key's public key packet
+        // ObjectivePGP Key has publicKey/secretKey properties
+        // User ID is typically in the key's description or can be extracted from armored text
+        let keyDescription = "\(key)"
+
+        // Fallback: parse email from armored key text directly
+        // User ID line looks like: "Name <email@example.com>"
+        let lines = armoredKey.components(separatedBy: "\n")
+        for line in lines {
+            if let start = line.range(of: "<"), let end = line.range(of: ">") {
+                let email = String(line[start.upperBound..<end.lowerBound])
+                if email.contains("@") {
+                    return email
+                }
+            }
         }
-        return userId
+
+        // Try from key description
+        if let start = keyDescription.range(of: "<"), let end = keyDescription.range(of: ">") {
+            let email = String(keyDescription[start.upperBound..<end.lowerBound])
+            if email.contains("@") {
+                return email
+            }
+        }
+
+        return nil
     }
 }
