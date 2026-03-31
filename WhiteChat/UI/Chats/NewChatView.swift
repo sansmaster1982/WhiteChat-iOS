@@ -1,5 +1,5 @@
 import SwiftUI
-import CodeScannerView
+import CodeScanner
 
 /// New chat — enter email or scan QR code
 /// Matches Android NewChatScreen
