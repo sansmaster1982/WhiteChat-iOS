@@ -1,4 +1,5 @@
 import Foundation
+import CommonCrypto
 import ObjectivePGP
 
 /// Manages PGP key generation, storage, and retrieval
@@ -79,7 +80,7 @@ final class PgpKeyManager {
             && fileManager.fileExists(atPath: keyDir.appendingPathComponent("secret.asc").path)
     }
 
-    /// Get fingerprint of own public key
+    /// Get fingerprint of own public key (SHA1 of key data)
     func getFingerprint() -> String? {
         guard let publicKey = getPublicKey(),
               let keyData = publicKey.data(using: .utf8),
@@ -87,7 +88,19 @@ final class PgpKeyManager {
               let key = keys.first else {
             return nil
         }
-        return key.fingerprint.description().replacingOccurrences(of: " ", with: "").uppercased()
+
+        // Try to get fingerprint from key
+        do {
+            let exportedData = try key.export(keyType: .public)
+            // SHA1 hash of public key data as fingerprint
+            var digest = [UInt8](repeating: 0, count: Int(CC_SHA1_DIGEST_LENGTH))
+            exportedData.withUnsafeBytes {
+                _ = CC_SHA1($0.baseAddress, CC_LONG(exportedData.count), &digest)
+            }
+            return digest.map { String(format: "%02X", $0) }.joined()
+        } catch {
+            return nil
+        }
     }
 
     /// Build OPENPGP4FPR QR string (matches Android format)
