@@ -18,28 +18,45 @@ final class PgpKeyManager {
 
     // MARK: - Key Generation
 
-    /// Generate RSA-4096 PGP key pair
+    /// Generate RSA-4096 PGP key pair using ObjectivePGP
     func generateKeyPair(email: String, name: String) throws {
-        let key = KeyGenerator()
-            .generate(for: "\(name) <\(email)>", passphrase: nil)
+        let userId = "\(name) <\(email)>"
 
-        // Export public key
-        let publicData = try key.export(keyType: .public)
-        let publicArmored = Armor.armored(publicData, as: .publicKey)
-        try publicArmored.write(
-            to: keyDir.appendingPathComponent("public.asc"),
-            atomically: true,
-            encoding: .utf8
-        )
+        // ObjectivePGP KeyGenerator
+        let generator = KeyGenerator()
+        let key = generator.generate(for: userId, passphrase: nil)
 
-        // Export secret key
-        let secretData = try key.export(keyType: .secret)
-        let secretArmored = Armor.armored(secretData, as: .secretKey)
-        try secretArmored.write(
-            to: keyDir.appendingPathComponent("secret.asc"),
-            atomically: true,
-            encoding: .utf8
-        )
+        // Export and save public key
+        do {
+            let publicData = try key.export(keyType: .public)
+            let publicArmored = Armor.armored(publicData, as: .publicKey)
+            let publicURL = keyDir.appendingPathComponent("public.asc")
+            try publicArmored.write(to: publicURL, atomically: true, encoding: .utf8)
+        } catch {
+            // Fallback: save raw data as base64 armored manually
+            let publicData = try key.export(keyType: .public)
+            let armored = "-----BEGIN PGP PUBLIC KEY BLOCK-----\n\n\(publicData.base64EncodedString(options: .lineLength76Characters))\n-----END PGP PUBLIC KEY BLOCK-----"
+            let publicURL = keyDir.appendingPathComponent("public.asc")
+            try armored.write(to: publicURL, atomically: true, encoding: .utf8)
+        }
+
+        // Export and save secret key
+        do {
+            let secretData = try key.export(keyType: .secret)
+            let secretArmored = Armor.armored(secretData, as: .secretKey)
+            let secretURL = keyDir.appendingPathComponent("secret.asc")
+            try secretArmored.write(to: secretURL, atomically: true, encoding: .utf8)
+        } catch {
+            let secretData = try key.export(keyType: .secret)
+            let armored = "-----BEGIN PGP PRIVATE KEY BLOCK-----\n\n\(secretData.base64EncodedString(options: .lineLength76Characters))\n-----END PGP PRIVATE KEY BLOCK-----"
+            let secretURL = keyDir.appendingPathComponent("secret.asc")
+            try armored.write(to: secretURL, atomically: true, encoding: .utf8)
+        }
+
+        // Verify keys were written
+        guard hasKeyPair else {
+            throw CryptoError.keyGenerationFailed
+        }
     }
 
     // MARK: - Key Retrieval
@@ -60,6 +77,25 @@ final class PgpKeyManager {
     var hasKeyPair: Bool {
         fileManager.fileExists(atPath: keyDir.appendingPathComponent("public.asc").path)
             && fileManager.fileExists(atPath: keyDir.appendingPathComponent("secret.asc").path)
+    }
+
+    /// Get fingerprint of own public key
+    func getFingerprint() -> String? {
+        guard let publicKey = getPublicKey(),
+              let keyData = publicKey.data(using: .utf8),
+              let keys = try? ObjectivePGP.readKeys(from: keyData),
+              let key = keys.first else {
+            return nil
+        }
+        return key.fingerprint.description().replacingOccurrences(of: " ", with: "").uppercased()
+    }
+
+    /// Build OPENPGP4FPR QR string (matches Android format)
+    func getQRString(email: String, name: String) -> String? {
+        guard let fingerprint = getFingerprint() else { return nil }
+        let encodedEmail = email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? email
+        let encodedName = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? name
+        return "OPENPGP4FPR:\(fingerprint)#a=\(encodedEmail)&n=\(encodedName)"
     }
 
     // MARK: - Contact Keys

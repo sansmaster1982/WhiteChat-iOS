@@ -42,6 +42,10 @@
     <array>
         <string>com.whitechat.ios.emailsync</string>
     </array>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <true/>
+    <key>ITSEncryptionExportComplianceCode</key>
+    <string></string>
     <key>NSCameraUsageDescription</key>
     <string>Camera is needed to scan QR codes and take photos</string>
     <key>NSMicrophoneUsageDescription</key>
