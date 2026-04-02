@@ -15,6 +15,14 @@
 "onboarding_generating" = "Генерация RSA-4096 ключей...";
 "onboarding_generating_hint" = "Это может занять некоторое время";
 "onboarding_ready" = "Всё готово!";
+"onboarding_choose_provider" = "Выберите почтовый сервис";
+"onboarding_choose_provider_hint" = "Мы поможем настроить IMAP доступ";
+"onboarding_other_provider" = "Другой";
+"onboarding_instructions_title" = "Настройка почты";
+"onboarding_instructions_done" = "Готово, продолжить";
+"onboarding_qr_hint" = "Покажите QR-код собеседнику для добавления контакта";
+"onboarding_continue" = "Продолжить";
+"new_chat_qr_no_email" = "QR-код не содержит email адрес";
 
 /* Chats */
 "chats_title" = "Чаты";

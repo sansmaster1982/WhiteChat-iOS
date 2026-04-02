@@ -34,3 +34,5 @@ profile_base64.txt
 *.ipa
 *.dSYM.zip
 *.dSYM
+ios_screenshots/
+*.zip
