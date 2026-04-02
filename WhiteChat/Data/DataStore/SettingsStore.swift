@@ -62,8 +62,9 @@ final class SettingsStore: ObservableObject {
         self.accountPassword = defaults.string(forKey: "account_password") ?? ""
         self.accountProvider = defaults.string(forKey: "account_provider") ?? ""
         let savedName = defaults.string(forKey: "account_name") ?? ""
-        if savedName.isEmpty && !self.accountEmail.isEmpty {
-            self.displayName = self.accountEmail.components(separatedBy: "@").first ?? self.accountEmail
+        let email = defaults.string(forKey: "account_email") ?? ""
+        if savedName.isEmpty && !email.isEmpty {
+            self.displayName = email.components(separatedBy: "@").first ?? email
         } else {
             self.displayName = savedName
         }
