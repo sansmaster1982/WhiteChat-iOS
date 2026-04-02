@@ -1,4 +1,5 @@
 import SwiftUI
+import CodeScanner
 
 /// Main tab navigation — matches Android BottomNavigation + global QR button
 struct MainTabView: View {
