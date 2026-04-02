@@ -15,6 +15,14 @@
 "onboarding_generating" = "Generating RSA-4096 keys...";
 "onboarding_generating_hint" = "This may take a moment";
 "onboarding_ready" = "You're all set!";
+"onboarding_choose_provider" = "Choose email provider";
+"onboarding_choose_provider_hint" = "We'll help you set up IMAP access";
+"onboarding_other_provider" = "Other";
+"onboarding_instructions_title" = "Email setup";
+"onboarding_instructions_done" = "Done, continue";
+"onboarding_qr_hint" = "Show this QR code to add contact";
+"onboarding_continue" = "Continue";
+"new_chat_qr_no_email" = "QR code does not contain an email address";
 
 /* Chats */
 "chats_title" = "Chats";
