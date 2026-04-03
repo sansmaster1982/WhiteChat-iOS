@@ -1,11 +1,12 @@
 import SwiftUI
 import CodeScanner
 
-/// New chat — enter email or scan QR code
-/// Matches Android NewChatScreen + OPENPGP4FPR QR parsing
+/// New chat — EXACT copy of Android logic
+/// Parses OPENPGP4FPR:fingerprint#a=email&n=name format
 struct NewChatView: View {
     @Environment(\.dismiss) var dismiss
     @State private var email = ""
+    @State private var displayName = ""
     @State private var showQRScanner = false
     @State private var errorMessage = ""
     @State private var showError = false
@@ -14,9 +15,7 @@ struct NewChatView: View {
         NavigationStack {
             VStack(spacing: 24) {
                 Text(L("new_chat_description"))
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal)
+                    .font(.body).foregroundColor(.secondary).padding(.horizontal)
 
                 TextField(L("new_chat_email_placeholder"), text: $email)
                     .textFieldStyle(.roundedBorder)
@@ -24,85 +23,70 @@ struct NewChatView: View {
                     .autocapitalization(.none)
                     .padding(.horizontal)
 
-                Button {
-                    showQRScanner = true
-                } label: {
+                Button { showQRScanner = true } label: {
                     HStack {
                         Image(systemName: "qrcode.viewfinder")
                         Text(L("new_chat_scan_qr"))
                     }
-                    .font(.headline)
-                    .foregroundColor(AppTheme.primary)
+                    .font(.headline).foregroundColor(AppTheme.primary)
                 }
 
                 Spacer()
 
-                Button {
-                    addContact(name: "")
-                } label: {
+                Button { addContact() } label: {
                     Text(L("new_chat_add"))
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
+                        .font(.headline).foregroundColor(.white)
+                        .frame(maxWidth: .infinity).padding()
                         .background(email.contains("@") ? AppTheme.primary : Color.gray)
                         .cornerRadius(12)
                 }
                 .disabled(!email.contains("@"))
-                .padding(.horizontal)
-                .padding(.bottom)
+                .padding(.horizontal).padding(.bottom)
             }
             .navigationTitle(L("new_chat_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L("cancel")) { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button(L("cancel")) { dismiss() } }
             }
             .sheet(isPresented: $showQRScanner) {
-                QRScannerView { result in
-                    handleQRResult(result)
-                }
+                QRScannerView { result in handleQRResult(result) }
             }
-            .alert(L("error"), isPresented: $showError) {
-                Button("OK") {}
-            } message: {
-                Text(errorMessage)
-            }
+            .alert(L("error"), isPresented: $showError) { Button("OK") {} } message: { Text(errorMessage) }
         }
     }
 
-    private func addContact(name: String) {
+    private func addContact() {
         let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard trimmed.contains("@") else { return }
+        guard trimmed.contains("@"), !trimmed.hasPrefix("@") else { return }
 
         if ContactRepository.shared.contactExists(email: trimmed) {
-            errorMessage = L("new_chat_already_exists")
-            showError = true
-            return
+            errorMessage = L("new_chat_already_exists"); showError = true; return
         }
+
+        let name = displayName.isEmpty ? trimmed.components(separatedBy: "@").first ?? trimmed : displayName
 
         do {
             try ContactRepository.shared.addContact(Contact.create(email: trimmed, name: name))
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
-            showError = true
+            errorMessage = error.localizedDescription; showError = true
         }
     }
 
     private func handleQRResult(_ result: String) {
         showQRScanner = false
 
-        // 1. OPENPGP4FPR format: OPENPGP4FPR:fingerprint#a=email&n=name
-        if result.uppercased().hasPrefix("OPENPGP4FPR:") {
-            let parsed = parseOpenPGP4FPR(result)
-            if let parsedEmail = parsed.email {
+        // 1. OPENPGP4FPR format
+        if result.lowercased().hasPrefix("openpgp4fpr:") {
+            let parsed = Self.parseOpenPGP4FPR(result)
+            if let parsedEmail = parsed.email,
+               parsedEmail.contains("@"),
+               !parsedEmail.hasPrefix("@") {
                 email = parsedEmail
-                addContact(name: parsed.name ?? "")
+                displayName = parsed.name ?? parsedEmail.components(separatedBy: "@").first ?? parsedEmail
+                addContact()
             } else {
-                // No email in QR — let user type it
-                errorMessage = L("new_chat_qr_no_email")
+                errorMessage = "QR не содержит email — введите вручную"
                 showError = true
             }
             return
@@ -113,7 +97,7 @@ struct NewChatView: View {
             if let extractedEmail = PgpCryptoEngine.shared.extractEmail(from: result) {
                 email = extractedEmail
                 try? PgpKeyManager.shared.saveContactKey(email: extractedEmail, armoredKey: result)
-                addContact(name: "")
+                addContact()
             }
             return
         }
@@ -124,37 +108,28 @@ struct NewChatView: View {
         }
     }
 
-    /// Parse OPENPGP4FPR:fingerprint#a=email&n=name format
-    /// Matches Android ContactsViewModel.importContactFromFpr()
-    private func parseOpenPGP4FPR(_ raw: String) -> (fingerprint: String, email: String?, name: String?) {
-        // Remove "OPENPGP4FPR:" prefix (case insensitive)
+    /// Parse OPENPGP4FPR:fingerprint#a=email&n=name — matches Android importContactFromFpr()
+    static func parseOpenPGP4FPR(_ raw: String) -> (fingerprint: String, email: String?, name: String?) {
         var str = raw
         if let range = str.range(of: "OPENPGP4FPR:", options: .caseInsensitive) {
             str = String(str[range.upperBound...])
         }
 
-        // Split fingerprint and params by "#"
         let parts = str.split(separator: "#", maxSplits: 1)
-        let fingerprint = String(parts.first ?? "")
+        let fingerprint = String(parts.first ?? "").uppercased().trimmingCharacters(in: .whitespaces)
 
         var extractedEmail: String?
         var extractedName: String?
 
         if parts.count > 1 {
-            let params = String(parts[1])
-            // Parse URL-encoded params: a=email&n=name
-            let pairs = params.split(separator: "&")
+            let pairs = String(parts[1]).split(separator: "&")
             for pair in pairs {
                 let kv = pair.split(separator: "=", maxSplits: 1)
                 guard kv.count == 2 else { continue }
                 let key = String(kv[0])
                 let value = String(kv[1]).removingPercentEncoding ?? String(kv[1])
-
-                switch key {
-                case "a": extractedEmail = value
-                case "n": extractedName = value
-                default: break
-                }
+                if key == "a" { extractedEmail = value.trimmingCharacters(in: .whitespaces) }
+                if key == "n" { extractedName = value.trimmingCharacters(in: .whitespaces) }
             }
         }
 

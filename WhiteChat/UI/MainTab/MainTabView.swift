@@ -141,13 +141,15 @@ struct QRTabsView: View {
     }
 
     private func handleScan(_ result: String) {
-        // Parse OPENPGP4FPR and add contact
-        if result.uppercased().hasPrefix("OPENPGP4FPR:") {
-            let parsed = parseOpenPGP4FPR(result)
-            if let parsedEmail = parsed.email {
-                if !ContactRepository.shared.contactExists(email: parsedEmail) {
+        // Use shared parser from NewChatView
+        if result.lowercased().hasPrefix("openpgp4fpr:") {
+            let parsed = NewChatView.parseOpenPGP4FPR(result)
+            if let parsedEmail = parsed.email,
+               parsedEmail.contains("@"), !parsedEmail.hasPrefix("@") {
+                let name = parsed.name ?? parsedEmail.components(separatedBy: "@").first ?? parsedEmail
+                if !ContactRepository.shared.contactExists(email: parsedEmail.lowercased()) {
                     try? ContactRepository.shared.addContact(
-                        Contact.create(email: parsedEmail, name: parsed.name ?? "")
+                        Contact.create(email: parsedEmail.lowercased(), name: name)
                     )
                 }
             }
@@ -160,28 +162,6 @@ struct QRTabsView: View {
             }
         }
         dismiss()
-    }
-
-    private func parseOpenPGP4FPR(_ raw: String) -> (email: String?, name: String?) {
-        var str = raw
-        if let range = str.range(of: "OPENPGP4FPR:", options: .caseInsensitive) {
-            str = String(str[range.upperBound...])
-        }
-        let parts = str.split(separator: "#", maxSplits: 1)
-        var email: String?
-        var name: String?
-        if parts.count > 1 {
-            let pairs = String(parts[1]).split(separator: "&")
-            for pair in pairs {
-                let kv = pair.split(separator: "=", maxSplits: 1)
-                guard kv.count == 2 else { continue }
-                let key = String(kv[0])
-                let value = String(kv[1]).removingPercentEncoding ?? String(kv[1])
-                if key == "a" { email = value }
-                if key == "n" { name = value }
-            }
-        }
-        return (email: email, name: name)
     }
 
     private func generateQR(from string: String) -> UIImage? {
