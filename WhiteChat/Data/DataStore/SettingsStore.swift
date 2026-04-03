@@ -58,7 +58,8 @@ final class SettingsStore: ObservableObject {
         self.themeMode = ThemeMode(rawValue: defaults.string(forKey: "theme_mode") ?? "") ?? .dark
         self.language = AppLanguage(rawValue: defaults.string(forKey: "app_language") ?? "") ?? AppLanguage.detectSystem()
         self.onboardingCompleted = defaults.bool(forKey: "onboarding_completed")
-        self.accountEmail = defaults.string(forKey: "account_email") ?? ""
+        let rawEmail = defaults.string(forKey: "account_email") ?? ""
+        self.accountEmail = rawEmail.replacingOccurrences(of: "mailto:", with: "").trimmingCharacters(in: .whitespaces).lowercased()
         self.accountPassword = defaults.string(forKey: "account_password") ?? ""
         self.accountProvider = defaults.string(forKey: "account_provider") ?? ""
         let savedName = defaults.string(forKey: "account_name") ?? ""
